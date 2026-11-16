@@ -1,0 +1,39 @@
+name: Bump cask
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  bump:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: cask を更新する
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "version=$(scripts/bump-cask.sh)" >> "$GITHUB_OUTPUT"
+
+      - name: PR を作る
+        if: steps.bump.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          branch="bump-claudegauge-$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "chore: claudegauge を $VERSION に更新した"
+          git push origin "$branch"
+          gh pr create --title "ClaudeGauge を $VERSION に更新した" \
+            --body "本体の v$VERSION のリリースに合わせて、cask の version と sha256 を更新した。" \
+            --base main --head "$branch"
