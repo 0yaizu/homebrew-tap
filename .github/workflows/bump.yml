@@ -7,12 +7,16 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: bump
+  cancel-in-progress: false
+
 jobs:
   bump:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -20,20 +24,25 @@ jobs:
         id: bump
         env:
           GH_TOKEN: ${{ github.token }}
-        run: echo "version=$(scripts/bump-cask.sh)" >> "$GITHUB_OUTPUT"
+        run: |
+          version="$(scripts/bump-cask.sh)"
+          if [[ -n "$version" && ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version の形が不正です" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: PR を作る
+      - name: cask の構文を確認する
+        if: steps.bump.outputs.version != ''
+        run: ruby -c Casks/claudegauge.rb
+
+      - name: main に push する
         if: steps.bump.outputs.version != ''
         env:
-          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
-          branch="bump-claudegauge-$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git commit -am "chore: claudegauge を $VERSION に更新した"
-          git push origin "$branch"
-          gh pr create --title "ClaudeGauge を $VERSION に更新した" \
-            --body "本体の v$VERSION のリリースに合わせて、cask の version と sha256 を更新した。" \
-            --base main --head "$branch"
+          git add Casks/claudegauge.rb
+          git commit -m "chore: claudegauge を $VERSION に更新した"
+          git push origin HEAD:refs/heads/main

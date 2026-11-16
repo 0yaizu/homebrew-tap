@@ -22,4 +22,4 @@ brew upgrade --cask claudegauge
 
 ## 更新の仕組み
 
-`.github/workflows/bump.yml`が6時間おきに本体の最新の安定版(`v1.2.3`の形)を調べ、新しければ`Casks/claudegauge.rb`を更新するPRを作ります。pre-releaseは対象外です。
+本体の安定版(`v1.2.3`の形)のリリースが終わると、本体の`release.yml`が`.github/workflows/bump.yml`を起動します。`bump.yml`は、本体のリリースのzipが、そのタグのコミットから本体の`release.yml`でビルドされたものか、由来の証明(attestation)で検証します。検証したzipからsha256を計算して、`Casks/claudegauge.rb`の`version`と`sha256`を更新して、`main`に直接pushします。取りこぼしに備えて、6時間おきにも動きます。pre-releaseは対象外です。
